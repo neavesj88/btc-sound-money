@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0a08">
+<title>Bitcoin · Sound Money Calculator</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+<style>
+:root{
+  --bg:#0b0a08;
+  --bg-2:#141210;
+  --panel:#1a1714;
+  --panel-2:#231e19;
+  --line:#2a241e;
+  --ink:#f4eee3;
+  --ink-2:#c9bda9;
+  --ink-3:#8a7e6c;
+  --orange:#f7931a;            /* bitcoin orange */
+  --orange-soft:#ffb454;
+  --gold:#d4af37;
+  --gold-soft:#f0d56b;
+  --aud:#7fb3d5;
+  --usd:#79c97a;
+  --aud-cpi:#4d7a96;
+  --usd-cpi:#4a8a4d;
+  --warn:#e07a3b;
+  --err:#cf5b5b;
+  --good:#7ec27e;
+  --r:14px;
+  --r-sm:9px;
+  --pad:18px;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{
+  min-height:100vh;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(247,147,26,0.10), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(212,175,55,0.07), transparent 55%),
+    radial-gradient(800px 600px at 50% 110%, rgba(247,147,26,0.05), transparent 60%),
+    var(--bg);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+
+a{color:var(--orange-soft)}
+
+/* ── layout ─────────────────────────────────────────────── */
+.wrap{max-width:1240px;margin:0 auto;padding:28px 22px 80px}
+
+header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:14px}
+.brand .mark{
+  font-family:'Fraunces',serif;font-weight:800;font-size:30px;letter-spacing:-0.02em;line-height:1;
+  background:linear-gradient(180deg,var(--orange-soft) 0%, var(--orange) 60%, #b56610 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.brand .sub{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.22em;color:var(--ink-3)}
+
+.status{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.1em;color:var(--ink-3);display:flex;align-items:center;gap:8px}
+.status .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-3);box-shadow:0 0 8px currentColor}
+.status.ok .dot{background:var(--good);color:var(--good)}
+.status.warn .dot{background:var(--warn);color:var(--warn)}
+.status.err .dot{background:var(--err);color:var(--err)}
+
+/* ── grid ───────────────────────────────────────────────── */
+.grid{display:grid;grid-template-columns:340px 1fr;gap:22px}
+@media (max-width: 900px){.grid{grid-template-columns:1fr}}
+
+.panel{
+  background:linear-gradient(180deg,var(--panel) 0%, var(--panel-2) 100%);
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  padding:var(--pad);
+  position:relative;
+  box-shadow:0 1px 0 rgba(255,255,255,0.03) inset, 0 20px 50px -30px rgba(0,0,0,0.6);
+}
+.panel h2{
+  font-family:'Fraunces',serif;font-weight:600;font-size:13px;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-3);
+  margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--line);
+}
+
+/* ── inputs ─────────────────────────────────────────────── */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;font-family:'JetBrains Mono',monospace}
+.input,.select{
+  width:100%;background:var(--bg-2);border:1px solid var(--line);color:var(--ink);
+  font-family:'JetBrains Mono',monospace;font-size:16px;padding:11px 12px;border-radius:var(--r-sm);
+  outline:none;transition:border-color .15s, box-shadow .15s;
+}
+.input:focus,.select:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(247,147,26,0.18)}
+.input.big{font-size:22px;padding:14px 14px;letter-spacing:0.02em}
+
+.quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chip{
+  font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--bg-2);border:1px solid var(--line);
+  color:var(--ink-2);padding:5px 9px;border-radius:999px;cursor:pointer;transition:all .12s;
+}
+.chip:hover{border-color:var(--orange);color:var(--orange-soft)}
+
+.row{display:flex;gap:10px}
+.row > *{flex:1}
+
+/* ── toggles ────────────────────────────────────────────── */
+.toggles{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.toggle{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--bg-2);border:1px solid var(--line);color:var(--ink-2);
+  padding:8px 12px;border-radius:999px;font-size:13px;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;letter-spacing:0.04em;
+  transition:all .15s;user-select:none;
+}
+.toggle .swatch{width:9px;height:9px;border-radius:50%;background:var(--ink-3);transition:all .15s}
+.toggle[data-on="1"]{background:rgba(247,147,26,0.06);color:var(--ink);border-color:rgba(247,147,26,0.4)}
+.toggle[data-on="1"] .swatch{box-shadow:0 0 8px currentColor}
+.toggle[data-key="usd"][data-on="1"] .swatch{background:var(--usd);color:var(--usd)}
+.toggle[data-key="aud"][data-on="1"] .swatch{background:var(--aud);color:var(--aud)}
+.toggle[data-key="gold_oz"][data-on="1"] .swatch{background:var(--gold);color:var(--gold)}
+.toggle[data-key="gold_g"][data-on="1"] .swatch{background:var(--gold-soft);color:var(--gold-soft)}
+.toggle[data-key="usd_real"][data-on="1"] .swatch{background:var(--usd-cpi);color:var(--usd-cpi)}
+.toggle[data-key="aud_real"][data-on="1"] .swatch{background:var(--aud-cpi);color:var(--aud-cpi)}
+.toggle[data-key="m2_supply"][data-on="1"] .swatch{background:#c98ee7;color:#c98ee7}
+
+/* segmented buttons (range + scale + view) */
+.seg{display:inline-flex;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;flex-wrap:wrap}
+.seg button{
+  background:transparent;border:0;color:var(--ink-2);padding:8px 12px;
+  font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.06em;cursor:pointer;
+  border-right:1px solid var(--line);transition:all .12s;
+}
+.seg button:last-child{border-right:0}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:rgba(247,147,26,0.10);color:var(--orange-soft)}
+
+/* ── now-values strip ───────────────────────────────────── */
+.now{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+@media (max-width:700px){.now{grid-template-columns:repeat(2,1fr)}}
+.now .cell{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:12px 13px;position:relative;overflow:hidden;
+}
+.now .cell::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent,var(--orange))}
+.now .cell.usd{--accent:var(--usd)}
+.now .cell.aud{--accent:var(--aud)}
+.now .cell.gold-oz{--accent:var(--gold)}
+.now .cell.gold-g{--accent:var(--gold-soft)}
+.now .lbl{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
+.now .val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:500;color:var(--ink);letter-spacing:-0.01em}
+.now .sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3);margin-top:2px}
+
+/* ── chart card ─────────────────────────────────────────── */
+.chartcard{padding:14px 14px 10px}
+.chart-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;padding:6px 6px 14px}
+.chart-head .title{font-family:'Fraunces',serif;font-weight:600;font-size:18px;letter-spacing:-0.01em}
+.chart-head .meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3);letter-spacing:0.08em;text-transform:uppercase}
+.controls-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:8px}
+#chartWrap{position:relative;height:480px}
+@media (max-width:700px){#chartWrap{height:380px}}
+
+/* ── time machine + purchasing power ───────────────────── */
+.tm-result{
+  margin-top:12px;padding:14px;border-radius:var(--r-sm);
+  background:linear-gradient(135deg,rgba(247,147,26,0.08),rgba(212,175,55,0.04));
+  border:1px solid rgba(247,147,26,0.25);
+}
+.tm-result.empty{background:var(--bg-2);border:1px dashed var(--line);color:var(--ink-3);text-align:center;font-family:'JetBrains Mono',monospace;font-size:12px}
+.tm-result .headline{font-family:'Fraunces',serif;font-size:24px;line-height:1.15;margin-bottom:6px}
+.tm-result .headline .num{color:var(--orange-soft)}
+.tm-result .detail{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-2);line-height:1.6}
+.tm-result .detail b{color:var(--ink)}
+
+.pp{margin-top:14px}
+.pp .row{padding:9px 0;border-bottom:1px dashed var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pp .row:last-child{border-bottom:0}
+.pp .name{font-size:13px;color:var(--ink-2)}
+.pp .qty{font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--orange-soft);font-weight:500;text-align:right}
+
+/* footer */
+.foot{margin-top:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.18em;color:var(--ink-3);text-transform:uppercase}
+.foot a{color:var(--ink-3);text-decoration:none;border-bottom:1px dotted var(--ink-3)}
+
+/* loading bar */
+.loader{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--orange),var(--gold));width:0;transition:width .25s;z-index:100;box-shadow:0 0 12px var(--orange)}
+
+/* tooltip override for chart */
+.chartjs-tooltip{font-family:'JetBrains Mono',monospace}
+
+/* tiny noise overlay for texture */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;opacity:0.025;mix-blend-mode:overlay;z-index:0;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+.wrap{position:relative;z-index:1}
+
+/* details collapse */
+details.notes{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r-sm);padding:0}
+details.notes summary{cursor:pointer;list-style:none;padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-3)}
+details.notes summary::-webkit-details-marker{display:none}
+details.notes[open] summary{border-bottom:1px solid var(--line);color:var(--ink-2)}
+details.notes .body{padding:14px 16px;font-size:13px;color:var(--ink-2);line-height:1.7}
+details.notes code{font-family:'JetBrains Mono',monospace;color:var(--orange-soft);background:var(--bg-2);padding:1px 5px;border-radius:3px}
+</style>
+</head>
+<body>
+<div class="loader" id="loader"></div>
+
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="mark">₿ · Sound Money</div>
+      <div class="sub">Bitcoin valuation against fiat &amp; gold</div>
+    </div>
+    <div class="status" id="status"><span class="dot"></span><span id="statusText">Booting</span></div>
+  </header>
+
+  <div class="grid">
+
+    <!-- ─────────── LEFT: CONTROLS ─────────── -->
+    <aside>
+
+      <section class="panel">
+        <h2>Stack</h2>
+        <div class="field">
+          <label for="btc">Bitcoin amount</label>
+          <input id="btc" class="input big" type="number" min="0" step="0.0001" inputmode="decimal" value="1" />
+          <div class="quick">
+            <button class="chip" data-btc="0.001">0.001 ₿</button>
+            <button class="chip" data-btc="0.01">0.01 ₿</button>
+            <button class="chip" data-btc="0.1">0.1 ₿</button>
+            <button class="chip" data-btc="1">1 ₿</button>
+            <button class="chip" data-btc="10">10 ₿</button>
+            <button class="chip" data-btc="21">21 ₿</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Range</label>
+          <div class="seg" id="rangeSeg" role="group">
+            <button data-days="90">90D</button>
+            <button data-days="365">1Y</button>
+            <button data-days="1095" aria-pressed="true">3Y</button>
+            <button data-days="1825">5Y</button>
+            <button data-days="max">MAX</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>View</label>
+          <div class="seg" id="viewSeg" role="group">
+            <button data-view="value" aria-pressed="true">Value</button>
+            <button data-view="sats">Sats / $</button>
+            <button data-view="pct">% Change</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Scale</label>
+          <div class="seg" id="scaleSeg" role="group">
+            <button data-scale="linear" aria-pressed="true">Linear</button>
+            <button data-scale="log">Log</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top:18px">
+        <h2>Series</h2>
+        <div class="toggles" id="toggles">
+          <button class="toggle" data-key="usd"       data-on="1"><span class="swatch"></span>USD</button>
+          <button class="toggle" data-key="aud"       data-on="1"><span class="swatch"></span>AUD</button>
+          <button class="toggle" data-key="gold_oz"   data-on="1"><span class="swatch"></span>Gold/oz USD</button>
+          <button class="toggle" data-key="gold_g"    data-on="0"><span class="swatch"></span>Gold/g  USD</button>
+          <button class="toggle" data-key="usd_real"  data-on="0"><span class="swatch"></span>USD CPI-adj</button>
+          <button class="toggle" data-key="aud_real"  data-on="0"><span class="swatch"></span>AUD CPI-adj</button>
+          <button class="toggle" data-key="m2_supply" data-on="0"><span class="swatch"></span>US M2 supply</button>
+        </div>
+        <p style="font-size:11px;color:var(--ink-3);margin:12px 0 0;line-height:1.55;font-family:'JetBrains Mono',monospace">
+          CPI-adjusted lines re-base today's purchasing power backwards — flat fiat shows ground lost.
+          M2 supply is total US dollars in circulation — the money-printing line.
+        </p>
+      </section>
+
+      <section class="panel" style="margin-top:18px">
+        <h2>Time machine</h2>
+        <div class="field">
+          <label for="tmDate">"If I bought on…"</label>
+          <input id="tmDate" class="input" type="date" />
+        </div>
+        <div class="field">
+          <label for="tmAmt">Amount spent (AUD)</label>
+          <input id="tmAmt" class="input" type="number" min="0" step="1" value="1000" />
+        </div>
+        <div id="tmOut" class="tm-result empty">Pick a date to see what your spend would be worth today.</div>
+      </section>
+
+    </aside>
+
+    <!-- ─────────── RIGHT: NOW + CHART + PP ─────────── -->
+    <main>
+
+      <div class="now" id="now">
+        <div class="cell usd">    <div class="lbl">USD value</div><div class="val" id="nowUSD">—</div><div class="sub" id="nowUSDpx">spot</div></div>
+        <div class="cell aud">    <div class="lbl">AUD value</div><div class="val" id="nowAUD">—</div><div class="sub" id="nowAUDpx">spot</div></div>
+        <div class="cell gold-oz"><div class="lbl">Gold (troy oz)</div><div class="val" id="nowOZ">—</div><div class="sub" id="nowOZpx">oz @ spot</div></div>
+        <div class="cell gold-g"> <div class="lbl">Gold (grams)</div><div class="val" id="nowG">—</div><div class="sub" id="nowGpx">g @ spot</div></div>
+      </div>
+
+      <section class="panel chartcard">
+        <div class="chart-head">
+          <div>
+            <div class="title" id="chartTitle">Value of your bitcoin</div>
+            <div class="meta" id="chartMeta">—</div>
+          </div>
+        </div>
+        <div id="chartWrap"><canvas id="chart"></canvas></div>
+      </section>
+
+      <section class="panel" style="margin-top:18px">
+        <h2>Purchasing power · today</h2>
+        <div class="pp" id="pp"></div>
+        <p style="font-size:11px;color:var(--ink-3);margin:12px 0 0;line-height:1.55;font-family:'JetBrains Mono',monospace">
+          Indicative AUD reference prices, edit in source if you want your own. Useful for a gut-check, not for offers.
+        </p>
+      </section>
+
+      <details class="notes">
+        <summary>How this works · data sources · caching</summary>
+        <div class="body">
+          <p>BTC price history and US M2 money supply both come from <code>charts.bitcoin.com</code>'s free m2 endpoint — daily granularity, no key, deep history (5y/all). AUD values are derived by multiplying BTC/USD by USD→AUD from Frankfurter (ECB reference rates, free, no key). Gold/oz comes from <code>freegoldapi.com</code> (USD daily history, no key). Gram price = oz ÷ 31.1034768.</p>
+          <p>CPI-adjusted lines re-express historical USD or AUD <i>in today's purchasing power</i> using long-run inflation rates (USD ≈ 3.2%/y, AUD ≈ 3.0%/y as a rolling average). It's a smoothed reference, not month-exact CPI.</p>
+          <p>The "% Change" view is the best one for comparing growth rates across all units — it shows BTC's gain vs gold's vs M2's expansion on a single axis from the same starting point.</p>
+          <p>All API responses are cached in <code>localStorage</code> for 6 hours, keyed by range. Once loaded the page works offline. To force-refresh, hit <code>Shift</code>+reload or clear site data.</p>
+          <p>Everything runs client-side. No tracking, no key. Save this file anywhere and it works.</p>
+        </div>
+      </details>
+
+      <div class="foot">
+        ⛏ Numbers are indicative · Verify with your own node before trades · <a href="https://charts.bitcoin.com">bitcoin.com</a> · <a href="https://frankfurter.dev">Frankfurter</a> · <a href="https://freegoldapi.com">freegoldapi</a>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+/* ────────────────────────────────────────────────────────────
+   Config
+   ──────────────────────────────────────────────────────────── */
+const G_PER_OZ = 31.1034768;
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000;          // 6 hours
+const INFLATION = { USD: 0.032, AUD: 0.030 };     // long-run averages, applied as compounding annual
+const SERIES_META = {
+  usd:       { label:'BTC × USD',          color:'#79c97a', currency:'USD' },
+  aud:       { label:'BTC × AUD',          color:'#7fb3d5', currency:'AUD' },
+  gold_oz:   { label:'BTC × Gold/oz',      color:'#d4af37', currency:'oz'  },
+  gold_g:    { label:'BTC × Gold/g',       color:'#f0d56b', currency:'g'   },
+  usd_real:  { label:'USD (today\'s power)',color:'#4a8a4d', currency:'USD', dash:[4,4] },
+  aud_real:  { label:'AUD (today\'s power)',color:'#4d7a96', currency:'AUD', dash:[4,4] },
+  m2_supply: { label:'US M2 supply ($B)',  color:'#c98ee7', currency:'M2',  dash:[2,3] },
+};
+const COLOR_FOR_KEY = k => SERIES_META[k].color;
+
+const PURCHASING_POWER_ITEMS_AUD = [
+  { name:'Loaf of bread',                       price: 5     },
+  { name:'Litre of unleaded (Perth)',           price: 1.95  },
+  { name:'Schooner of beer',                    price: 11    },
+  { name:'Big Mac meal',                        price: 14    },
+  { name:'Tank of fuel (60 L)',                 price: 117   },
+  { name:'Median weekly rent · Perth',          price: 685   },
+  { name:'Average monthly grocery (1 person)',  price: 750   },
+  { name:'Median Perth house',                  price: 850000},
+];
+
+/* ────────────────────────────────────────────────────────────
+   State
+   ──────────────────────────────────────────────────────────── */
+const state = {
+  btc: 1,
+  rangeDays: 1095,
+  view: 'value',              // 'value' | 'sats' | 'pct'
+  scale: 'linear',
+  enabled: { usd:true, aud:true, gold_oz:true, gold_g:false, usd_real:false, aud_real:false, m2_supply:false },
+  data: null,                 // hydrated series
+  chart: null,
+};
+
+/* ────────────────────────────────────────────────────────────
+   Tiny helpers
+   ──────────────────────────────────────────────────────────── */
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+function setStatus(text, kind /* ok|warn|err|null */){
+  const el = $('#status'); el.classList.remove('ok','warn','err');
+  if(kind) el.classList.add(kind);
+  $('#statusText').textContent = text;
+}
+function setLoader(p){ $('#loader').style.width = (p*100).toFixed(0)+'%'; if(p>=1) setTimeout(()=>$('#loader').style.width='0',400); }
+
+const fmtMoney = (v,ccy) => {
+  if(v === null || v === undefined || !isFinite(v)) return '—';
+  const opts = { style:'currency', currency:ccy, maximumFractionDigits: v >= 1000 ? 0 : 2 };
+  try { return new Intl.NumberFormat('en-AU',opts).format(v); }
+  catch(e){ return ccy+' '+v.toFixed(2); }
+};
+const fmtNum = (v, d=2) => v===null||!isFinite(v)?'—':new Intl.NumberFormat('en-AU',{maximumFractionDigits:d}).format(v);
+const fmtPct = v => (v>=0?'+':'')+fmtNum(v,1)+'%';
+const dateStr = d => d.toISOString().slice(0,10);
+
+function cacheGet(key){
+  try{
+    const raw = localStorage.getItem('bvc:'+key); if(!raw) return null;
+    const obj = JSON.parse(raw);
+    if(Date.now() - obj.t > CACHE_TTL_MS) return null;
+    return obj.d;
+  }catch(e){ return null }
+}
+function cacheSet(key, data){
+  try{ localStorage.setItem('bvc:'+key, JSON.stringify({t:Date.now(), d:data})); }catch(e){}
+}
+
+async function fetchJSON(url, cacheKey){
+  if(cacheKey){
+    const c = cacheGet(cacheKey); if(c) return c;
+  }
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('HTTP '+r.status+' '+url);
+  const j = await r.json();
+  if(cacheKey) cacheSet(cacheKey, j);
+  return j;
+}
+
+/* ────────────────────────────────────────────────────────────
+   Data fetchers
+   ──────────────────────────────────────────────────────────── */
+
+// BTC/USD daily history + US M2 supply via charts.bitcoin.com (no key, no rate limit, deep history)
+// Single call gives us both BTC price and M2 money supply for the inflation story.
+async function getBTCAndM2(days){
+  let timespan;
+  if(days === 'max')         timespan = 'all';
+  else if(days <= 30)        timespan = '30d';
+  else if(days <= 365)       timespan = '1y';
+  else if(days <= 730)       timespan = '2y';
+  else if(days <= 1825)      timespan = '5y';
+  else                       timespan = 'all';
+
+  const url = `https://charts.bitcoin.com/api/v1/charts/m2?interval=daily&timespan=${timespan}`;
+  const j = await fetchJSON(url, 'btc_m2_'+timespan);
+
+  // Actual response shape: data.combined = [{timestamp, btcPrice, btcNormalized, m2Billions, m2Normalized}, ...]
+  const raw = j?.data?.combined || [];
+  return raw.map(row => ({
+    date: new Date(row.timestamp).toISOString().slice(0,10),
+    ts: row.timestamp,
+    usd: Number(row.btcPrice),
+    m2_billions: Number(row.m2Billions),
+  })).filter(p => isFinite(p.usd) && isFinite(p.ts));
+}
+
+// Frankfurter USD->AUD time series. For very old dates fall back to a sensible default.
+async function getUSDAUD(startDate){
+  const today = dateStr(new Date());
+  const url = `https://api.frankfurter.dev/v1/${startDate}..${today}?base=USD&symbols=AUD`;
+  const j = await fetchJSON(url, 'usdaud_'+startDate);
+  // returns { rates: { '2023-01-02': { AUD: 1.45 }, ... } }
+  return j.rates;
+}
+
+// freegoldapi.com – returns all gold history in USD/oz
+async function getGoldHistory(){
+  const url = 'https://freegoldapi.com/data/latest.json';
+  const j = await fetchJSON(url, 'gold_all');
+  // [{date, price, source}]
+  // Build a map by date for fast lookup
+  const map = {};
+  for(const row of j){ map[row.date] = row.price; }
+  return { rows: j, map };
+}
+
+/* ────────────────────────────────────────────────────────────
+   Build merged series
+   ──────────────────────────────────────────────────────────── */
+function nearestGoldPrice(goldMap, date){
+  // walk back up to 14 days if exact date missing (weekends, holidays)
+  for(let i=0;i<30;i++){
+    const d = new Date(date); d.setDate(d.getDate()-i);
+    const k = dateStr(d);
+    if(goldMap[k]) return goldMap[k];
+  }
+  return null;
+}
+function nearestFXRate(fxMap, date){
+  // walk back for non-trading days
+  for(let i=0;i<14;i++){
+    const d = new Date(date); d.setDate(d.getDate()-i);
+    const k = dateStr(d);
+    if(fxMap[k] && fxMap[k].AUD) return fxMap[k].AUD;
+  }
+  return null;
+}
+
+async function hydrate(days){
+  setStatus('Fetching BTC history…'); setLoader(0.1);
+  const btc = await getBTCAndM2(days);
+  if(!btc.length) throw new Error('Empty BTC series');
+
+  const startDate = btc[0].date;
+  setStatus('Fetching USD → AUD…'); setLoader(0.45);
+  const fx = await getUSDAUD(startDate);
+
+  setStatus('Fetching gold history…'); setLoader(0.75);
+  const gold = await getGoldHistory();
+
+  setStatus('Stitching series…'); setLoader(0.9);
+
+  const series = btc.map(b => {
+    const aud_rate = nearestFXRate(fx, b.date);
+    const goldUSDoz = nearestGoldPrice(gold.map, b.date);
+    return {
+      date: b.date,
+      ts: b.ts,
+      btc_usd: b.usd,
+      btc_aud: aud_rate ? b.usd * aud_rate : null,
+      gold_usd_oz: goldUSDoz,
+      gold_usd_g: goldUSDoz ? goldUSDoz / G_PER_OZ : null,
+      btc_in_oz:  goldUSDoz ? b.usd / goldUSDoz : null,
+      btc_in_g:   goldUSDoz ? b.usd / (goldUSDoz / G_PER_OZ) : null,
+      usd_to_aud: aud_rate,
+      m2_billions: b.m2_billions || null,
+    };
+  });
+
+  setLoader(1);
+  setStatus('Up to date', 'ok');
+  return series;
+}
+
+/* ────────────────────────────────────────────────────────────
+   Inflation adjustment
+   ──────────────────────────────────────────────────────────── */
+// Given a value at date d in currency, return its "today purchasing power" equivalent
+function toRealPower(value, atDate, todayDate, annualRate){
+  if(value===null||!isFinite(value)) return null;
+  const years = (todayDate - atDate)/(1000*60*60*24*365.25);
+  // value at time t expressed in today's purchasing power = value * (1+r)^years
+  return value * Math.pow(1+annualRate, years);
+}
+
+/* ────────────────────────────────────────────────────────────
+   Rendering
+   ──────────────────────────────────────────────────────────── */
+function buildDatasets(series){
+  const btc = state.btc;
+  const todayTs = series[series.length-1].ts;
+
+  // Each toggle key -> {data, color, axis}
+  // We'll plot multiple Y-axes since currencies differ wildly in scale.
+  // Strategy: one Y axis per "currency", but Chart.js can handle multiple.
+  // To keep this readable on a single chart, we instead NORMALIZE everything
+  // when view==='pct'. In 'value' mode we use separate axes; in 'sats' mode different math.
+
+  const labels = series.map(p => p.ts);
+
+  function dsFor(key){
+    const meta = SERIES_META[key];
+    let data;
+    if(state.view === 'value'){
+      if(key === 'usd')       data = series.map(p => p.btc_usd!==null? p.btc_usd*btc : null);
+      if(key === 'aud')       data = series.map(p => p.btc_aud!==null? p.btc_aud*btc : null);
+      if(key === 'gold_oz')   data = series.map(p => p.btc_in_oz!==null? p.btc_in_oz*btc : null);
+      if(key === 'gold_g')    data = series.map(p => p.btc_in_g !==null? p.btc_in_g *btc : null);
+      if(key === 'usd_real')  data = series.map(p => p.btc_usd!==null? toRealPower(p.btc_usd*btc, p.ts, todayTs, INFLATION.USD) : null);
+      if(key === 'aud_real')  data = series.map(p => p.btc_aud!==null? toRealPower(p.btc_aud*btc, p.ts, todayTs, INFLATION.AUD) : null);
+      if(key === 'm2_supply') data = series.map(p => p.m2_billions || null);
+    } else if(state.view === 'sats'){
+      // M2 has no meaning in sats/$ — skip
+      if(key === 'm2_supply') data = series.map(()=>null);
+      else if(key === 'usd')      data = series.map(p => p.btc_usd ? 1e8/p.btc_usd : null);
+      else if(key === 'aud')      data = series.map(p => p.btc_aud ? 1e8/p.btc_aud : null);
+      else if(key === 'gold_oz')  data = series.map(p => p.btc_in_oz ? 1e8/p.btc_in_oz : null);
+      else if(key === 'gold_g')   data = series.map(p => p.btc_in_g  ? 1e8/p.btc_in_g  : null);
+      else if(key === 'usd_real') data = series.map(p => { const v=p.btc_usd? toRealPower(p.btc_usd,p.ts,todayTs,INFLATION.USD):null; return v? 1e8/v : null; });
+      else if(key === 'aud_real') data = series.map(p => { const v=p.btc_aud? toRealPower(p.btc_aud,p.ts,todayTs,INFLATION.AUD):null; return v? 1e8/v : null; });
+    } else if(state.view === 'pct'){
+      let base = null;
+      const raw = series.map(p => {
+        if(key === 'usd')       return p.btc_usd;
+        if(key === 'aud')       return p.btc_aud;
+        if(key === 'gold_oz')   return p.btc_in_oz;
+        if(key === 'gold_g')    return p.btc_in_g;
+        if(key === 'usd_real')  return p.btc_usd ? toRealPower(p.btc_usd,p.ts,todayTs,INFLATION.USD) : null;
+        if(key === 'aud_real')  return p.btc_aud ? toRealPower(p.btc_aud,p.ts,todayTs,INFLATION.AUD) : null;
+        if(key === 'm2_supply') return p.m2_billions || null;
+      });
+      base = raw.find(v => v!==null && isFinite(v));
+      data = raw.map(v => v!==null && base? ((v/base)-1)*100 : null);
+    }
+
+    return {
+      label: meta.label,
+      data: data,
+      borderColor: meta.color,
+      backgroundColor: meta.color+'20',
+      borderWidth: 1.8,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      borderDash: meta.dash || [],
+      tension: 0.15,
+      spanGaps: true,
+      yAxisID: yAxisIdFor(key),
+    };
+  }
+
+  const datasets = Object.keys(state.enabled).filter(k => state.enabled[k]).map(dsFor);
+  return { labels, datasets };
+}
+
+function yAxisIdFor(key){
+  if(state.view !== 'value') return 'y';
+  if(key === 'usd' || key === 'usd_real') return 'yUSD';
+  if(key === 'aud' || key === 'aud_real') return 'yAUD';
+  if(key === 'gold_oz') return 'yOZ';
+  if(key === 'gold_g')  return 'yG';
+  if(key === 'm2_supply') return 'yM2';
+  return 'y';
+}
+
+function buildScales(){
+  const isValue = state.view === 'value';
+  const isPct   = state.view === 'pct';
+  const scaleType = state.scale;
+  if(!isValue){
+    return {
+      x:{ type:'time', time:{unit: state.rangeDays > 730 ? 'year' : 'month'}, grid:{color:'#2a241e44'}, ticks:{color:'#8a7e6c'} },
+      y:{ type: isPct ? 'linear' : scaleType, grid:{color:'#2a241e44'}, ticks:{color:'#8a7e6c',
+          callback: v => isPct ? fmtNum(v,0)+'%' : (state.view==='sats' ? fmtNum(v,0)+' sats' : v) } },
+    };
+  }
+  const visible = Object.keys(state.enabled).filter(k => state.enabled[k]);
+  const has = ax => visible.some(k => yAxisIdFor(k)===ax);
+  const axes = {
+    x:{ type:'time', time:{unit: state.rangeDays > 730 ? 'year' : 'month'}, grid:{color:'#2a241e44'}, ticks:{color:'#8a7e6c'} },
+  };
+  if(has('yUSD')){
+    axes.yUSD = { type:scaleType, position:'left', grid:{color:'#2a241e44'},
+      ticks:{color:'#79c97a',callback:v=>'$'+fmtNum(v,0)}, title:{display:false} };
+  }
+  if(has('yAUD')){
+    axes.yAUD = { type:scaleType, position:'left', grid:{display:false},
+      ticks:{color:'#7fb3d5',callback:v=>'A$'+fmtNum(v,0)} };
+  }
+  if(has('yOZ')){
+    axes.yOZ = { type:scaleType, position:'right', grid:{display:false},
+      ticks:{color:'#d4af37',callback:v=>fmtNum(v,3)+' oz'} };
+  }
+  if(has('yG')){
+    axes.yG = { type:scaleType, position:'right', grid:{display:false},
+      ticks:{color:'#f0d56b',callback:v=>fmtNum(v,1)+' g'} };
+  }
+  if(has('yM2')){
+    axes.yM2 = { type:scaleType, position:'right', grid:{display:false},
+      ticks:{color:'#c98ee7',callback:v=>'$'+fmtNum(v/1000,1)+'T'} };
+  }
+  return axes;
+}
+
+function renderChart(){
+  if(!state.data) return;
+  const {labels, datasets} = buildDatasets(state.data);
+  const cfg = {
+    type:'line',
+    data:{ labels, datasets },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      animation:{duration:380, easing:'easeOutCubic'},
+      interaction:{mode:'index', intersect:false},
+      plugins:{
+        legend:{
+          labels:{ color:'#c9bda9', font:{ family:"'JetBrains Mono',monospace", size:11 }, boxWidth:14, boxHeight:8 }
+        },
+        tooltip:{
+          backgroundColor:'#0b0a08', borderColor:'#2a241e', borderWidth:1,
+          titleColor:'#f4eee3', bodyColor:'#c9bda9',
+          titleFont:{family:"'Fraunces',serif", weight:'600', size:13},
+          bodyFont:{family:"'JetBrains Mono',monospace", size:12},
+          padding:12, displayColors:true, boxPadding:6,
+          callbacks:{
+            label:(ctx)=>{
+              const v = ctx.parsed.y;
+              const key = Object.keys(state.enabled).filter(k=>state.enabled[k])[ctx.datasetIndex];
+              if(state.view==='pct') return ctx.dataset.label+': '+fmtPct(v);
+              if(state.view==='sats') return ctx.dataset.label+': '+fmtNum(v,0)+' sats';
+              if(key==='usd'||key==='usd_real') return ctx.dataset.label+': '+fmtMoney(v,'USD');
+              if(key==='aud'||key==='aud_real') return ctx.dataset.label+': '+fmtMoney(v,'AUD');
+              if(key==='gold_oz') return ctx.dataset.label+': '+fmtNum(v,3)+' oz';
+              if(key==='gold_g')  return ctx.dataset.label+': '+fmtNum(v,1)+' g';
+              if(key==='m2_supply') return ctx.dataset.label+': $'+fmtNum(v/1000,2)+' trillion';
+              return ctx.dataset.label+': '+fmtNum(v,2);
+            },
+            title:(items)=> new Date(items[0].parsed.x).toLocaleDateString('en-AU',{year:'numeric',month:'short',day:'numeric'}),
+          }
+        }
+      },
+      scales: buildScales(),
+    }
+  };
+  if(state.chart) state.chart.destroy();
+  state.chart = new Chart($('#chart').getContext('2d'), cfg);
+
+  // Title and meta
+  const startStr = new Date(state.data[0].ts).toLocaleDateString('en-AU',{year:'numeric',month:'short'});
+  const endStr   = new Date(state.data[state.data.length-1].ts).toLocaleDateString('en-AU',{year:'numeric',month:'short'});
+  const verb = state.view==='value' ? 'Value' : state.view==='sats' ? 'Sats per 1 unit' : '% change';
+  $('#chartTitle').textContent = `${verb} of ${fmtNum(state.btc,8).replace(/\.?0+$/,'')} ₿`;
+  $('#chartMeta').textContent  = `${startStr} → ${endStr} · ${state.scale} scale`;
+}
+
+/* ── live "now" strip ─── */
+function renderNow(){
+  if(!state.data) return;
+  const last = [...state.data].reverse().find(p => p.btc_usd!==null);
+  if(!last) return;
+  const btc = state.btc;
+  $('#nowUSD').textContent  = fmtMoney(last.btc_usd*btc, 'USD');
+  $('#nowAUD').textContent  = last.btc_aud!==null ? fmtMoney(last.btc_aud*btc, 'AUD') : '—';
+  $('#nowOZ').textContent   = last.btc_in_oz!==null ? fmtNum(last.btc_in_oz*btc,3)+' oz' : '—';
+  $('#nowG').textContent    = last.btc_in_g !==null ? fmtNum(last.btc_in_g *btc,1)+' g'  : '—';
+  $('#nowUSDpx').textContent= '@ '+fmtMoney(last.btc_usd,'USD')+' / ₿';
+  $('#nowAUDpx').textContent= last.btc_aud!==null ? '@ '+fmtMoney(last.btc_aud,'AUD')+' / ₿' : '';
+  $('#nowOZpx').textContent = last.gold_usd_oz ? '@ '+fmtMoney(last.gold_usd_oz,'USD')+' / oz' : '';
+  $('#nowGpx').textContent  = last.gold_usd_g  ? '@ '+fmtMoney(last.gold_usd_g, 'USD')+' / g'  : '';
+}
+
+/* ── purchasing power ─── */
+function renderPP(){
+  if(!state.data) return;
+  const last = [...state.data].reverse().find(p => p.btc_aud!==null);
+  if(!last) return;
+  const totalAUD = last.btc_aud * state.btc;
+  const html = PURCHASING_POWER_ITEMS_AUD.map(it => {
+    const qty = totalAUD / it.price;
+    let q;
+    if(qty < 0.01)      q = qty.toFixed(4);
+    else if(qty < 1)    q = qty.toFixed(2);
+    else if(qty < 1000) q = fmtNum(qty, qty<10?2:0);
+    else                q = fmtNum(qty,0);
+    return `<div class="row"><div class="name">${it.name}</div><div class="qty">${q} ×</div></div>`;
+  }).join('');
+  $('#pp').innerHTML = html;
+}
+
+/* ── time machine ─── */
+function renderTimeMachine(){
+  if(!state.data) return;
+  const dateStr_ = $('#tmDate').value;
+  const amtAUD = parseFloat($('#tmAmt').value);
+  const out = $('#tmOut');
+  if(!dateStr_ || !amtAUD || amtAUD<=0){
+    out.classList.add('empty');
+    out.innerHTML = 'Pick a date to see what your spend would be worth today.';
+    return;
+  }
+  // find nearest point on/after that date
+  const target = new Date(dateStr_).getTime();
+  const point = state.data.find(p => p.ts >= target) || state.data[state.data.length-1];
+  const last  = [...state.data].reverse().find(p => p.btc_aud!==null);
+  if(!point || !point.btc_aud || !last){
+    out.classList.remove('empty');
+    out.innerHTML = '<div class="detail">No data for that date in the current range. Try a longer range (5Y or MAX).</div>';
+    return;
+  }
+  const btcBought = amtAUD / point.btc_aud;
+  const nowValue  = btcBought * last.btc_aud;
+  const mult = nowValue / amtAUD;
+  const years = (last.ts - point.ts)/(1000*60*60*24*365.25);
+  const cagr  = years>0.05 ? (Math.pow(mult, 1/years)-1)*100 : null;
+
+  // inflation-adjusted equivalent of original amount
+  const realCost = toRealPower(amtAUD, point.ts, last.ts, INFLATION.AUD);
+  const realMult = nowValue / realCost;
+
+  out.classList.remove('empty');
+  out.innerHTML = `
+    <div class="headline">A$${fmtNum(amtAUD,0)} on ${new Date(point.ts).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})}<br/>
+    is now worth <span class="num">${fmtMoney(nowValue,'AUD')}</span></div>
+    <div class="detail">
+      You'd have bought <b>${fmtNum(btcBought,8)} ₿</b> at <b>${fmtMoney(point.btc_aud,'AUD')}</b>/₿.<br/>
+      Multiplier: <b>${fmtNum(mult,2)}×</b>${cagr!==null? ' · CAGR <b>'+fmtPct(cagr)+'</b>':''}<br/>
+      Inflation-adjusted (today's AUD): original would be <b>${fmtMoney(realCost,'AUD')}</b> → real multiplier <b>${fmtNum(realMult,2)}×</b>.
+    </div>`;
+}
+
+/* ────────────────────────────────────────────────────────────
+   Wire UI
+   ──────────────────────────────────────────────────────────── */
+function bindUI(){
+  // BTC input + chips
+  $('#btc').addEventListener('input', e => {
+    state.btc = parseFloat(e.target.value)||0; renderAll();
+  });
+  $$('.chip').forEach(c => c.addEventListener('click', () => {
+    state.btc = parseFloat(c.dataset.btc);
+    $('#btc').value = state.btc;
+    renderAll();
+  }));
+
+  // Range
+  $$('#rangeSeg button').forEach(b => b.addEventListener('click', async () => {
+    $$('#rangeSeg button').forEach(x => x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+    state.rangeDays = b.dataset.days === 'max' ? 'max' : parseInt(b.dataset.days,10);
+    await loadAndRender();
+  }));
+
+  // View
+  $$('#viewSeg button').forEach(b => b.addEventListener('click', () => {
+    $$('#viewSeg button').forEach(x => x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+    state.view = b.dataset.view;
+    renderChart();
+  }));
+
+  // Scale
+  $$('#scaleSeg button').forEach(b => b.addEventListener('click', () => {
+    $$('#scaleSeg button').forEach(x => x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+    state.scale = b.dataset.scale;
+    renderChart();
+  }));
+
+  // Toggles
+  $$('#toggles .toggle').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.key;
+    state.enabled[k] = !state.enabled[k];
+    b.dataset.on = state.enabled[k] ? '1' : '0';
+    renderChart();
+  }));
+
+  // Time machine
+  $('#tmDate').addEventListener('change', renderTimeMachine);
+  $('#tmAmt').addEventListener('input', renderTimeMachine);
+
+  // Default tmDate: 3 years ago
+  const def = new Date(); def.setFullYear(def.getFullYear()-3);
+  $('#tmDate').value = dateStr(def);
+}
+
+function renderAll(){ renderChart(); renderNow(); renderPP(); renderTimeMachine(); }
+
+async function loadAndRender(){
+  try{
+    state.data = await hydrate(state.rangeDays);
+    renderAll();
+  }catch(e){
+    console.error(e);
+    setStatus('Data load failed — '+e.message,'err');
+    $('#chartTitle').textContent = 'Data load failed';
+    $('#chartMeta').textContent  = e.message;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   Boot
+   ──────────────────────────────────────────────────────────── */
+bindUI();
+loadAndRender();
+</script>
+</body>
+</html>
