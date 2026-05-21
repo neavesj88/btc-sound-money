@@ -280,11 +280,9 @@ details.notes code{font-family:'JetBrains Mono',monospace;color:var(--orange-sof
           <button class="toggle" data-key="gold_g"    data-on="0"><span class="swatch"></span>Gold/g  USD</button>
           <button class="toggle" data-key="usd_real"  data-on="0"><span class="swatch"></span>USD CPI-adj</button>
           <button class="toggle" data-key="aud_real"  data-on="0"><span class="swatch"></span>AUD CPI-adj</button>
-          <button class="toggle" data-key="m2_supply" data-on="0"><span class="swatch"></span>US M2 supply</button>
         </div>
         <p style="font-size:11px;color:var(--ink-3);margin:12px 0 0;line-height:1.55;font-family:'JetBrains Mono',monospace">
           CPI-adjusted lines re-base today's purchasing power backwards — flat fiat shows ground lost.
-          M2 supply is total US dollars in circulation — the money-printing line.
         </p>
       </section>
 
@@ -334,7 +332,7 @@ details.notes code{font-family:'JetBrains Mono',monospace;color:var(--orange-sof
       <details class="notes">
         <summary>How this works · data sources · caching</summary>
         <div class="body">
-          <p>BTC price history and US M2 money supply both come from <code>charts.bitcoin.com</code>'s free m2 endpoint — daily granularity, no key, deep history (5y/all). AUD values are derived by multiplying BTC/USD by USD→AUD from Frankfurter (ECB reference rates, free, no key). Gold/oz comes from <code>freegoldapi.com</code> (USD daily history, no key). Gram price = oz ÷ 31.1034768.</p>
+          <p>BTC price history comes from <code>CoinGecko</code>'s public API (no key required) — daily granularity for ranges ≥90D, hourly (deduplicated to daily) for shorter ranges. AUD values are derived by multiplying BTC/USD by USD→AUD from Frankfurter (ECB reference rates, free, no key). Gold/oz comes from <code>freegoldapi.com</code> (USD daily history, no key). Gram price = oz ÷ 31.1034768.</p>
           <p>CPI-adjusted lines re-express historical USD or AUD <i>in today's purchasing power</i> using long-run inflation rates (USD ≈ 3.2%/y, AUD ≈ 3.0%/y as a rolling average). It's a smoothed reference, not month-exact CPI.</p>
           <p>The "% Change" view is the best one for comparing growth rates across all units — it shows BTC's gain vs gold's vs M2's expansion on a single axis from the same starting point.</p>
           <p>All API responses are cached in <code>localStorage</code> for 6 hours, keyed by range. Once loaded the page works offline. To force-refresh, hit <code>Shift</code>+reload or clear site data.</p>
@@ -387,7 +385,7 @@ const state = {
   rangeDays: 1095,
   view: 'value',              // 'value' | 'sats' | 'pct'
   scale: 'linear',
-  enabled: { usd:true, aud:true, gold_oz:true, gold_g:false, usd_real:false, aud_real:false, m2_supply:false },
+  enabled: { usd:true, aud:true, gold_oz:true, gold_g:false, usd_real:false, aud_real:false },
   data: null,                 // hydrated series
   chart: null,
 };
@@ -442,28 +440,19 @@ async function fetchJSON(url, cacheKey){
    Data fetchers
    ──────────────────────────────────────────────────────────── */
 
-// BTC/USD daily history + US M2 supply via charts.bitcoin.com (no key, no rate limit, deep history)
-// Single call gives us both BTC price and M2 money supply for the inflation story.
-async function getBTCAndM2(days){
-  let timespan;
-  if(days === 'max')         timespan = 'all';
-  else if(days <= 30)        timespan = '30d';
-  else if(days <= 365)       timespan = '1y';
-  else if(days <= 730)       timespan = '2y';
-  else if(days <= 1825)      timespan = '5y';
-  else                       timespan = 'all';
-
-  const url = `https://charts.bitcoin.com/api/v1/charts/m2?interval=daily&timespan=${timespan}`;
-  const j = await fetchJSON(url, 'btc_m2_'+timespan);
-
-  // Actual response shape: data.combined = [{timestamp, btcPrice, btcNormalized, m2Billions, m2Normalized}, ...]
-  const raw = j?.data?.combined || [];
-  return raw.map(row => ({
-    date: new Date(row.timestamp).toISOString().slice(0,10),
-    ts: row.timestamp,
-    usd: Number(row.btcPrice),
-    m2_billions: Number(row.m2Billions),
-  })).filter(p => isFinite(p.usd) && isFinite(p.ts));
+// BTC/USD daily history via CoinGecko public API (no key required)
+async function getBTCHistory(days){
+  const d = days === 'max' ? 'max' : days;
+  const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${d}`;
+  const j = await fetchJSON(url, 'btc_cg_'+d);
+  // j.prices = [[timestamp_ms, price_usd], ...]
+  // CoinGecko returns hourly for <90d, daily for longer ranges — deduplicate to one point per day
+  const byDay = {};
+  for(const [ts, price] of (j.prices || [])){
+    const date = new Date(ts).toISOString().slice(0,10);
+    byDay[date] = { date, ts, usd: price };
+  }
+  return Object.values(byDay).sort((a,b) => a.ts - b.ts).filter(p => isFinite(p.usd));
 }
 
 // Frankfurter USD->AUD time series. For very old dates fall back to a sensible default.
@@ -510,7 +499,7 @@ function nearestFXRate(fxMap, date){
 
 async function hydrate(days){
   setStatus('Fetching BTC history…'); setLoader(0.1);
-  const btc = await getBTCAndM2(days);
+  const btc = await getBTCHistory(days);
   if(!btc.length) throw new Error('Empty BTC series');
 
   const startDate = btc[0].date;
@@ -535,7 +524,6 @@ async function hydrate(days){
       btc_in_oz:  goldUSDoz ? b.usd / goldUSDoz : null,
       btc_in_g:   goldUSDoz ? b.usd / (goldUSDoz / G_PER_OZ) : null,
       usd_to_aud: aud_rate,
-      m2_billions: b.m2_billions || null,
     };
   });
 
