@@ -332,7 +332,7 @@ details.notes code{font-family:'JetBrains Mono',monospace;color:var(--orange-sof
       <details class="notes">
         <summary>How this works · data sources · caching</summary>
         <div class="body">
-          <p>BTC price history comes from <code>CoinGecko</code>'s public API (no key required) — daily granularity for ranges ≥90D, hourly (deduplicated to daily) for shorter ranges. AUD values are derived by multiplying BTC/USD by USD→AUD from Frankfurter (ECB reference rates, free, no key). Gold/oz comes from <code>freegoldapi.com</code> (USD daily history, no key). Gram price = oz ÷ 31.1034768.</p>
+          <p>BTC price history comes from <code>Kraken</code>'s public OHLC API (no key required) — daily candles, up to 720 per call. Longer ranges fire parallel requests that are merged and deduplicated. AUD values are derived by multiplying BTC/USD by USD→AUD from Frankfurter (ECB reference rates, free, no key). Gold/oz comes from <code>freegoldapi.com</code> (USD daily history, no key). Gram price = oz ÷ 31.1034768.</p>
           <p>CPI-adjusted lines re-express historical USD or AUD <i>in today's purchasing power</i> using long-run inflation rates (USD ≈ 3.2%/y, AUD ≈ 3.0%/y as a rolling average). It's a smoothed reference, not month-exact CPI.</p>
           <p>The "% Change" view is the best one for comparing growth rates across all units — it shows BTC's gain vs gold's vs M2's expansion on a single axis from the same starting point.</p>
           <p>All API responses are cached in <code>localStorage</code> for 6 hours, keyed by range. Once loaded the page works offline. To force-refresh, hit <code>Shift</code>+reload or clear site data.</p>
@@ -440,19 +440,38 @@ async function fetchJSON(url, cacheKey){
    Data fetchers
    ──────────────────────────────────────────────────────────── */
 
-// BTC/USD daily history via CoinGecko public API (no key required)
+// BTC/USD daily history via Kraken public OHLC API (no key required, 720 candles per call)
+// For ranges > 720 days we fire parallel requests from computed start timestamps and merge.
 async function getBTCHistory(days){
-  const d = days === 'max' ? 'max' : days;
-  const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${d}`;
-  const j = await fetchJSON(url, 'btc_cg_'+d);
-  // j.prices = [[timestamp_ms, price_usd], ...]
-  // CoinGecko returns hourly for <90d, daily for longer ranges — deduplicate to one point per day
+  const cacheKey = 'btc_hist_' + days;
+  const cached = cacheGet(cacheKey);
+  if(cached) return cached;
+
+  const nowSec  = Math.floor(Date.now() / 1000);
+  const maxDays = days === 'max' ? 3650 : days;   // cap MAX at ~10 years
+  const startSec = nowSec - maxDays * 86400;
+  const WINDOW   = 719;                            // slightly under 720 to avoid gap at seams
+
+  const sinces = [];
+  for(let s = startSec; s < nowSec; s += WINDOW * 86400) sinces.push(s);
+
+  const results = await Promise.all(sinces.map(since =>
+    fetchJSON(`https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440&since=${since}`, null)
+  ));
+
   const byDay = {};
-  for(const [ts, price] of (j.prices || [])){
-    const date = new Date(ts).toISOString().slice(0,10);
-    byDay[date] = { date, ts, usd: price };
+  for(const j of results){
+    for(const r of (j?.result?.XXBTZUSD || [])){
+      const ts   = r[0] * 1000;
+      const date = new Date(ts).toISOString().slice(0, 10);
+      const usd  = parseFloat(r[4]);               // close price
+      if(isFinite(usd) && usd > 0) byDay[date] = { date, ts, usd };
+    }
   }
-  return Object.values(byDay).sort((a,b) => a.ts - b.ts).filter(p => isFinite(p.usd));
+
+  const result = Object.values(byDay).sort((a, b) => a.ts - b.ts);
+  cacheSet(cacheKey, result);
+  return result;
 }
 
 // Frankfurter USD->AUD time series. For very old dates fall back to a sensible default.
