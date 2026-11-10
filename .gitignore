@@ -22,3 +22,5 @@ npm-debug.log*
 dist/
 build/
 node_modules/
+# Claude Code local permissions can capture secrets from approved commands
+**/.claude/settings.local.json
